@@ -1,60 +1,64 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Face Attendance</title>
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js"></script>
-  <script defer src="https://cdn.jsdelivr.net/npm/face-api.js"></script>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Face Scanner</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js"></script>
+<script defer src="https://cdn.jsdelivr.net/npm/face-api.js"></script>
 </head>
 <body>
-  <h1>Face Recognition Attendance</h1>
-  <video id="video" width="320" height="240" autoplay muted></video>
-  <button id="markAttendance">Mark Attendance</button>
-  <button onclick="window.location.href='dashboard.html'">Go to Dashboard</button>
+<h2>Face Recognition Attendance</h2>
+<video id="video" width="320" height="240" autoplay muted></video>
+<button id="scanBtn">Scan Face</button>
+<button onclick="window.location.href='dashboard.html'">Go to Dashboard</button>
 
-  <script>
-    // Supabase config
-    const SUPABASE_URL = "https://rkmgufohlmqknqkmmduu.supabase.co";
-    const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJrbWd1Zm9obG1xa25xa21tZHV1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTU4NDc2MzQsImV4cCI6MjA3MTQyMzYzNH0.aZxyaYCqD_6YcXoZDGqDkwft60lH0LaoegGc9EVwf7U";
-    const supabase = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+<script>
+const SUPABASE_URL = "https://rkmgufohlmqknqkmmduu.supabase.co";
+const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJrbWd1Zm9obG1xa25xa21tZHV1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTU4NDc2MzQsImV4cCI6MjA3MTQyMzYzNH0.aZxyaYCqD_6YcXoZDGqDkwft60lH0LaoegGc9EVwf7U";
+const supabase = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+const video = document.getElementById('video');
 
-    const video = document.getElementById('video');
+// Load face-api.js models
+Promise.all([
+    faceapi.nets.tinyFaceDetector.loadFromUri('/models'),
+    faceapi.nets.faceRecognitionNet.loadFromUri('/models'),
+    faceapi.nets.faceLandmark68Net.loadFromUri('/models')
+]).then(startVideo);
 
-    // Load face-api models
-    Promise.all([
-      faceapi.nets.tinyFaceDetector.loadFromUri('/models'),
-      faceapi.nets.faceRecognitionNet.loadFromUri('/models'),
-      faceapi.nets.faceLandmark68Net.loadFromUri('/models')
-    ]).then(startVideo);
-
-    function startVideo() {
-      navigator.mediaDevices.getUserMedia({ video: {} })
+function startVideo() {
+    navigator.mediaDevices.getUserMedia({ video: {} })
         .then(stream => video.srcObject = stream)
         .catch(err => console.error(err));
+}
+
+async function loadLabeledImages() {
+    const { data: attendees } = await supabase.from('attendees').select();
+    return Promise.all(attendees.map(async attendee => {
+        const img = await faceapi.fetchImage(attendee.reference_image_url);
+        const detection = await faceapi.detectSingleFace(img).withFaceLandmarks().withFaceDescriptor();
+        return new faceapi.LabeledFaceDescriptors(attendee.name, [detection.descriptor]);
+    }));
+}
+
+document.getElementById('scanBtn').addEventListener('click', async () => {
+    const labeledDescriptors = await loadLabeledImages();
+    const faceMatcher = new faceapi.FaceMatcher(labeledDescriptors, 0.6);
+
+    const detection = await faceapi.detectSingleFace(video, new faceapi.TinyFaceDetectorOptions())
+        .withFaceLandmarks().withFaceDescriptor();
+    if(!detection) return alert("No face detected!");
+
+    const bestMatch = faceMatcher.findBestMatch(detection.descriptor);
+    if(bestMatch.label !== "unknown") {
+        const { data: attendees } = await supabase.from('attendees').select().eq('name', bestMatch.label);
+        const attendee = attendees[0];
+        await supabase.from('attendance').insert([{ attendee_id: attendee.id }]);
+        alert(`${bestMatch.label} attendance marked!`);
+    } else {
+        alert("Face not recognized!");
     }
-
-    document.getElementById('markAttendance').addEventListener('click', async () => {
-      const canvas = faceapi.createCanvasFromMedia(video);
-      const detections = await faceapi.detectAllFaces(video, new faceapi.TinyFaceDetectorOptions());
-      if(detections.length === 0) {
-        alert("No face detected!");
-        return;
-      }
-
-      // Convert video frame to base64 image
-      const image = canvas.toDataURL('image/png');
-
-      // Upload to Supabase
-      const { data, error } = await supabase
-        .storage.from('attendees').upload(`faces/${Date.now()}.png`, await fetch(image).then(r => r.blob()));
-
-      if(error) { alert(error.message); return; }
-
-      const imageUrl = `${SUPABASE_URL}/storage/v1/object/public/attendees/${data.path}`;
-      await supabase.from('attendees').insert([{ name: "Unknown", image_url: imageUrl }]);
-      alert("Attendance marked!");
-    });
-  </script>
+});
+</script>
 </body>
 </html>
