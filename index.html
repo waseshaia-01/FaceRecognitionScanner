@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Face Recognition Attendance System</title>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js"></script>
     <style>
         * {
             margin: 0;
@@ -277,14 +278,7 @@
             
             <h2>Registered Attendees</h2>
             <div id="gallery" class="gallery">
-                <div class="face-card">
-                    <img src="https://via.placeholder.com/150/6e8efb/ffffff?text=Sample+1" alt="Sample 1">
-                    <p>John Doe</p>
-                </div>
-                <div class="face-card">
-                    <img src="https://via.placeholder.com/150/a777e3/ffffff?text=Sample+2" alt="Sample 2">
-                    <p>Jane Smith</p>
-                </div>
+                <!-- Faces will be loaded here -->
             </div>
             
             <div class="instructions">
@@ -301,6 +295,11 @@
     </div>
 
     <script>
+        // Initialize Supabase (replace with your actual Supabase URL and key)
+        const supabaseUrl = 'https://rkmgufohlmqknqkmmduu.supabase.co';
+        const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJrbWd1Zm9obG1xa25xa21tZHV1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTU4NDc2MzQsImV4cCI6MjA3MTQyMzYzNH0.aZxyaYCqD_6YcXoZDGqDkwft60lH0LaoegGc9EVwf7U';
+        const supabase = supabase.createClient(supabaseUrl, supabaseKey);
+        
         // Page navigation
         function showPage(pageId) {
             document.querySelectorAll('.page').forEach(page => {
@@ -313,6 +312,11 @@
             
             document.getElementById(pageId + '-page').classList.add('active');
             event.target.classList.add('active');
+            
+            // Load attendees when dashboard is shown
+            if (pageId === 'dashboard') {
+                loadAttendees();
+            }
         }
         
         // Camera access for scanner
@@ -337,13 +341,20 @@
                 '<div style="text-align: center;">Processing...</div>';
             
             // Simulate processing delay
-            setTimeout(() => {
-                // Randomly determine if recognized (70% chance)
+            setTimeout(async () => {
+                // For demo purposes, we'll randomly determine if recognized
                 const isRecognized = Math.random() > 0.3;
                 
                 if (isRecognized) {
-                    document.getElementById('result').innerHTML = 
-                        '<div class="recognized">✅ Recognized! Attendance recorded.</div>';
+                    // In a real app, you would get the attendee ID from face recognition
+                    const success = await recordAttendance('demo-attendee-id');
+                    if (success) {
+                        document.getElementById('result').innerHTML = 
+                            '<div class="recognized">✅ Recognized! Attendance recorded.</div>';
+                    } else {
+                        document.getElementById('result').innerHTML = 
+                            '<div class="not-recognized">❌ Error recording attendance.</div>';
+                    }
                 } else {
                     document.getElementById('result').innerHTML = 
                         '<div class="not-recognized">❌ Not on the list. Please register first.</div>';
@@ -351,8 +362,45 @@
             }, 1500);
         }
         
-        // Photo upload simulation
-        function uploadPhoto() {
+        // Load attendees from Supabase
+        async function loadAttendees() {
+            try {
+                const { data, error } = await supabase
+                    .from('attendees')
+                    .select(`
+                        *,
+                        face_images (image_url)
+                    `);
+                
+                if (error) throw error;
+                
+                const gallery = document.getElementById('gallery');
+                gallery.innerHTML = '';
+                
+                data.forEach(attendee => {
+                    const faceCard = document.createElement('div');
+                    faceCard.className = 'face-card';
+                    
+                    const imageUrl = attendee.face_images && attendee.face_images.length > 0 
+                        ? attendee.face_images[0].image_url 
+                        : 'https://via.placeholder.com/150/cccccc/969696?text=No+Image';
+                    
+                    faceCard.innerHTML = `
+                        <img src="${imageUrl}" alt="${attendee.name}">
+                        <p>${attendee.name}</p>
+                    `;
+                    
+                    gallery.appendChild(faceCard);
+                });
+            } catch (error) {
+                console.error('Error loading attendees:', error);
+                document.getElementById('gallery').innerHTML = 
+                    '<p>Error loading attendees. Please check console for details.</p>';
+            }
+        }
+        
+        // Upload photo to Supabase
+        async function uploadPhoto() {
             const name = document.getElementById('name').value;
             const file = document.getElementById('photo').files[0];
             
@@ -361,32 +409,62 @@
                 return;
             }
             
-            // In a real implementation, this would upload to Supabase
-            // For this example, we're simulating the upload process
-            
-            alert(`Photo uploaded for ${name}! (In a real app, this would be saved to Supabase)`);
-            
-            // Simulate adding to gallery
-            const gallery = document.getElementById('gallery');
-            const reader = new FileReader();
-            
-            reader.onload = function(e) {
+            try {
+                // In a real implementation, you would:
+                // 1. Upload the image to Supabase Storage
+                // 2. Get the public URL
+                // 3. Add the attendee to the database with the image URL
+                
+                // For demo purposes, we'll simulate this process
+                const fileName = `attendee-${Date.now()}-${file.name}`;
+                
+                // Simulate upload delay
+                document.querySelector('.upload-button').textContent = 'Uploading...';
+                await new Promise(resolve => setTimeout(resolve, 1500));
+                
+                // Simulate successful upload
+                const imageUrl = URL.createObjectURL(file);
+                
+                // Add to gallery immediately for demo purposes
+                const gallery = document.getElementById('gallery');
                 const faceCard = document.createElement('div');
                 faceCard.className = 'face-card';
                 faceCard.innerHTML = `
-                    <img src="${e.target.result}" alt="${name}">
+                    <img src="${imageUrl}" alt="${name}">
                     <p>${name}</p>
                 `;
-                
                 gallery.appendChild(faceCard);
-            };
-            
-            reader.readAsDataURL(file);
-            
-            // Clear the form
-            document.getElementById('name').value = '';
-            document.getElementById('photo').value = '';
+                
+                alert(`Photo uploaded for ${name}! (In a real app, this would be saved to Supabase)`);
+                
+                // Clear the form
+                document.getElementById('name').value = '';
+                document.getElementById('photo').value = '';
+                document.querySelector('.upload-button').textContent = 'Upload Photo';
+            } catch (error) {
+                console.error('Error uploading photo:', error);
+                alert('Error uploading photo. Please check console for details.');
+                document.querySelector('.upload-button').textContent = 'Upload Photo';
+            }
         }
+        
+        // Record attendance in Supabase
+        async function recordAttendance(attendeeId) {
+            try {
+                // In a real implementation, you would insert into attendance_logs
+                // For demo purposes, we'll simulate this
+                await new Promise(resolve => setTimeout(resolve, 500));
+                return true; // Simulate success
+            } catch (error) {
+                console.error('Error recording attendance:', error);
+                return false;
+            }
+        }
+        
+        // Load attendees on initial page load
+        document.addEventListener('DOMContentLoaded', () => {
+            loadAttendees();
+        });
     </script>
 </body>
 </html>
