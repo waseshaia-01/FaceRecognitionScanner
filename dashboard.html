@@ -4,15 +4,38 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Attendance Dashboard</title>
-  <script defer src="dashboard.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js"></script>
 </head>
 <body>
   <h1>Attendance Dashboard</h1>
-  <table border="1" id="attendance-table">
-    <thead>
-      <tr><th>ID</th><th>Name</th><th>Date</th></tr>
-    </thead>
-    <tbody></tbody>
+  <table border="1" id="attendanceTable">
+    <tr><th>ID</th><th>Name</th><th>Face</th><th>Timestamp</th></tr>
   </table>
+
+  <button onclick="window.location.href='index.html'">Back to Scan</button>
+
+  <script>
+    const SUPABASE_URL = "https://rkmgufohlmqknqkmmduu.supabase.co";
+    const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJrbWd1Zm9obG1xa25xa21tZHV1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTU4NDc2MzQsImV4cCI6MjA3MTQyMzYzNH0.aZxyaYCqD_6YcXoZDGqDkwft60lH0LaoegGc9EVwf7U";
+    const supabase = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+    async function loadAttendance() {
+      const { data, error } = await supabase.from('attendees').select();
+      const table = document.getElementById('attendanceTable');
+
+      data.forEach(row => {
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td>${row.id}</td>
+          <td>${row.name}</td>
+          <td><img src="${row.image_url}" width="50"/></td>
+          <td>${row.created_at}</td>
+        `;
+        table.appendChild(tr);
+      });
+    }
+
+    loadAttendance();
+  </script>
 </body>
 </html>
