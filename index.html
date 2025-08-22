@@ -19,7 +19,7 @@ const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZ
 const supabase = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 const video = document.getElementById('video');
 
-// Load face-api.js models
+// Load models
 Promise.all([
     faceapi.nets.tinyFaceDetector.loadFromUri('/models'),
     faceapi.nets.faceRecognitionNet.loadFromUri('/models'),
@@ -32,6 +32,7 @@ function startVideo() {
         .catch(err => console.error(err));
 }
 
+// Load reference faces from Supabase
 async function loadLabeledImages() {
     const { data: attendees } = await supabase.from('attendees').select();
     return Promise.all(attendees.map(async attendee => {
